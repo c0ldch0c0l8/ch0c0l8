@@ -1,0 +1,11 @@
+[package]
+name = "ch0c0l8"
+version = "0.1.0"
+authors = ["c0ldch0c0l8 <c0ldch0c0l8@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serenity = { version = "0.10.8", default-features = false, features = ["builder", "cache", "client", "rustls_backend", "gateway", "model", "utils"] }
+tokio = { version = "1.8.1", features = ["rt-multi-thread", "macros"] }
