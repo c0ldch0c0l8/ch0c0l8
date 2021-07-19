@@ -10,9 +10,7 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let cmd = get_cmd(&msg);
-
         println!("CMD: {:?}. MESSAGE: {} > {}", cmd, msg.author.name, msg.content_safe(&ctx).await);
-
         execute_cmd(&ctx, &msg, cmd).await.expect("Executing command error");
     }
 
@@ -36,17 +34,20 @@ async fn main() {
     }
 }
 
+// dont forget to register command into vec of commands in cmd.rs
 #[derive(Debug)]
 enum Cmd {
     None,
     NotFound(String),
+    UsageError(String),
     Ping,
     Help(String),
+    GetMessages(u64),
+    CreateChannel(String)
 }
 
-
+// get the command and do the arg checking here
 fn get_cmd(msg: &Message) -> Cmd {
-    // get message as an iter over chars
     let mut msg_chars = msg.content.as_str().chars();
 
     // check if message is a command
@@ -54,10 +55,9 @@ fn get_cmd(msg: &Message) -> Cmd {
         Cmd::None
 
     } else {
-        // the command as a string
         let mut cmd_string = String::new();
 
-        // is equal to start of message (after !) till first whitespace
+        // cmd_string is equal to start of message (after !) till first whitespace
         for ch in &mut msg_chars {
             if ch.is_whitespace() {
                 break;
@@ -66,25 +66,37 @@ fn get_cmd(msg: &Message) -> Cmd {
             }
         }
 
-        // match the command
+        let args: Vec<char> = msg_chars.collect();
+
         match cmd_string.as_str() {
             cmd::PING_COMMAND =>  {
                 Cmd::Ping
             },
             
             cmd::HELP_COMMAND => {
-                let args_first_char = msg_chars.next();
+                Cmd::Help(args.into_iter().collect())
+            },
 
-                if args_first_char == None {
-                    Cmd::Help("".to_string())
+            cmd::GET_MESSAGES_COMMAND => {
+                let number = args.into_iter().collect::<String>().parse();
 
+                if number.is_err() || number.clone().unwrap() > 100 {
+                    Cmd::UsageError("get_messages".to_string())
                 } else {
-                    let mut args = String::new();
-                    args.push(args_first_char.unwrap());
-                    args.push_str(msg_chars.collect::<String>().as_str());
-
-                    Cmd::Help(args)
+                    Cmd::GetMessages(number.unwrap())
                 }
+
+            },
+
+            cmd::CREATE_CHANNEL_COMMAND => {
+                let name: String = args.into_iter().collect();
+                
+                if name.is_empty() {
+                    Cmd::UsageError("create_channel".to_string())
+                } else {
+                    Cmd::CreateChannel(name)
+                }
+
             },
 
             not_found => {
@@ -95,6 +107,8 @@ fn get_cmd(msg: &Message) -> Cmd {
     }
 }
 
+// only do logic related to command here
+#[async_recursion::async_recursion]
 async fn execute_cmd(ctx: &Context, msg: &Message, cmd: Cmd) -> serenity::Result<()> {
     match cmd {
         Cmd::Ping => {
@@ -110,19 +124,54 @@ async fn execute_cmd(ctx: &Context, msg: &Message, cmd: Cmd) -> serenity::Result
                 if !cmd::COMMAND_STRINGS.contains(&args.as_str()) {
                     msg.reply(ctx, format!("{}: {}", args, cmd::COMMAND_NOT_FOUND)).await?;
                 } else {
+
                     // else match the command with its summary
                     match args.as_str() {
+
                         cmd::PING_COMMAND => {
                             msg.reply(ctx, cmd::PING_SUMMARY).await?;
                         },
                         cmd::HELP_COMMAND => {
                             msg.reply(ctx, cmd::HELP_SUMMARY).await?;
                         },
+                        cmd::GET_MESSAGES_COMMAND => {
+                            msg.reply(ctx, cmd::GET_MESSAGES_SUMMARY).await?;
+                        },
+                        cmd::CREATE_CHANNEL_COMMAND => {
+                            msg.reply(ctx, cmd::CREATE_CHANNEL_SUMMARY).await?;
+                        }
+                        
                         _ => {} // not reachable
                     }
                 }
             }
         },
+
+        Cmd::GetMessages(number) => {
+            let channel = msg.channel_id;
+            let message_id = msg.id;
+
+            let messages = channel.messages(ctx, |retriever| {
+                retriever.before(message_id).limit(number)
+            }).await?;
+
+            println!("{:?}", messages.into_iter().map(|e| {e.content}).collect::<Vec<String>>());
+
+            msg.reply(ctx, cmd::GET_MESSAGES_MESSAGE).await?;
+
+        },
+
+        Cmd::CreateChannel(name) => {
+            msg.guild_id.unwrap().create_channel(ctx, |channel| {
+                channel.name(name)
+            }).await?;
+
+            msg.reply_mention(ctx, cmd::CREATE_CHANNEL_MESSAGE).await?;
+        },
+
+        Cmd::UsageError(cmd_string) => {
+            execute_cmd(ctx, msg, Cmd::Help(cmd_string)).await?;
+        }
 
         Cmd::NotFound(cmd_string) => {
             msg.reply(ctx, format!("{}: {}", cmd_string, cmd::COMMAND_NOT_FOUND)).await?;
@@ -133,3 +182,5 @@ async fn execute_cmd(ctx: &Context, msg: &Message, cmd: Cmd) -> serenity::Result
 
     Ok(())
 }
+
+

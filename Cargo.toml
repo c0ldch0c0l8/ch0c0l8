@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 serenity = { version = "0.10.8", default-features = false, features = ["builder", "cache", "client", "rustls_backend", "gateway", "model", "utils"] }
 tokio = { version = "1.8.1", features = ["rt-multi-thread", "macros"] }
+
+async-recursion = "0.3.2"
