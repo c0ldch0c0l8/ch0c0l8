@@ -10,7 +10,7 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let cmd = get_cmd(&msg);
-        println!("CMD: {:?}. MESSAGE: {} > {}", cmd, msg.author.name, msg.content_safe(&ctx).await);
+        println!("CMD: {:?}. MESSAGE: {} in {} > {}", cmd, msg.author.name, msg.channel_id.name(&ctx).await.unwrap(), msg.content_safe(&ctx).await);
         execute_cmd(&ctx, &msg, cmd).await.expect("Executing command error");
     }
 
@@ -43,7 +43,8 @@ enum Cmd {
     Ping,
     Help(String),
     GetMessages(u64),
-    CreateChannel(String)
+    CreateChannel(String),
+    DeleteChannel
 }
 
 // get the command and do the arg checking here
@@ -99,6 +100,10 @@ fn get_cmd(msg: &Message) -> Cmd {
 
             },
 
+            cmd::DELETE_CHANNEL_COMMAND => {
+                Cmd::DeleteChannel
+            }
+
             not_found => {
                 Cmd::NotFound(not_found.to_string())
             }
@@ -139,6 +144,9 @@ async fn execute_cmd(ctx: &Context, msg: &Message, cmd: Cmd) -> serenity::Result
                         },
                         cmd::CREATE_CHANNEL_COMMAND => {
                             msg.reply(ctx, cmd::CREATE_CHANNEL_SUMMARY).await?;
+                        },
+                        cmd::DELETE_CHANNEL_COMMAND => {
+                            msg.reply(ctx, cmd::DELETE_CHANNEL_SUMMARY).await?;
                         }
                         
                         _ => {} // not reachable
@@ -167,6 +175,10 @@ async fn execute_cmd(ctx: &Context, msg: &Message, cmd: Cmd) -> serenity::Result
             }).await?;
 
             msg.reply_mention(ctx, cmd::CREATE_CHANNEL_MESSAGE).await?;
+        },
+
+        Cmd::DeleteChannel => {
+            msg.channel_id.delete(ctx).await?;
         },
 
         Cmd::UsageError(cmd_string) => {

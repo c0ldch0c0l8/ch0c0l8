@@ -1,4 +1,4 @@
-pub const COMMAND_STRINGS: [&str; 4] = ["ping", "help", "get_messages", "create_channel"];
+pub const COMMAND_STRINGS: [&str; 5] = ["ping", "help", "get_messages", "create_channel", "delete_channel"];
 pub const COMMAND_NOT_FOUND: &str = "Command not found.";  
 
 
@@ -35,13 +35,18 @@ I hope that resolves your issue!
 
 
 pub const GET_MESSAGES_COMMAND: &str = "get_messages"; 
-pub const GET_MESSAGES_SUMMARY: &str = "Gets any number between 0 and 100 messages sent in the channel.\nUSAGE: !get_messages <number> (between 0 and 100)";
+pub const GET_MESSAGES_SUMMARY: &str = "get_messages: Gets any number between 0 and 100 messages sent in the channel.\nUSAGE: !get_messages <number> (between 0 and 100)";
 
 pub const GET_MESSAGES_MESSAGE: &str = "Got messages [check]";
 
 
 pub const CREATE_CHANNEL_COMMAND: &str = "create_channel";
-pub const CREATE_CHANNEL_SUMMARY: &str = "Creates a text channel with a given name\nUSAGE: !create_channel <channel> (non-empty)";
+pub const CREATE_CHANNEL_SUMMARY: &str = "create_channel: Creates a text channel with a given name\nUSAGE: !create_channel <channel>";
 
 // this cmd and prolly some others in the future will likely not have a reason to reply with a message
 pub const CREATE_CHANNEL_MESSAGE: &str = "DONE";
+
+
+pub const DELETE_CHANNEL_COMMAND: &str = "delete_channel";
+pub const DELETE_CHANNEL_SUMMARY: &str = "delete_channel: deletes the current channel.\nUSAGE: !delete_channel";
+
