@@ -28,9 +28,10 @@ async fn main() {
     // register command here, in exec_command, and in help
     // consider adding a command_manager.validate() that checks 
     // that each command is set up and has provided all info
-    // necessary
+    // necessary. also check that roles in all commands are valid
     command_manager.register(&["ping", "test"], 0, 0, &[], &[]);
     command_manager.register(&["help", "info"], 0, 1, &[], &[]);
+    command_manager.register(&["delete_channel"], 0, 0, &[], &["Admin"]);
     
 
     let mut client = Client::builder(token).event_handler(command_manager).await.expect("Error Creating Client");

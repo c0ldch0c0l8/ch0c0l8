@@ -1,5 +1,5 @@
-use std::{collections::HashSet, ops::Range, str::FromStr};
-use serenity::{client::Context, model::{channel::Message, id::RoleId}};
+use std::{collections::HashSet, ops::Range};
+use serenity::{client::Context, model::channel::Message};
 
 
 pub struct CommandInfo{
@@ -96,22 +96,34 @@ impl CommandManager {
 
     }
 
-    fn permisions_valid(&self, command_indices: (usize, usize), ctx: &Context, msg: &Message) {
+    fn permisions_valid(&self, command_indices: (usize, usize), ctx: &Context, msg: &Message) -> bool {
         // ctx.http.delete_message(channel_id, message_id) TODO
+        println!("Permisions valid: true");
+        true
     }
 
-    async fn roles_valid(&self, command_indices: (usize, usize), ctx: &Context, msg: &Message) -> serenity::Result<()> {
+    async fn roles_valid(&self, command_indices: (usize, usize), ctx: &Context, msg: &Message) -> serenity::Result<bool> {
         let guild_id = msg.guild(ctx).await.expect("Guild Error").id;
+        let all_roles = guild_id.roles(ctx).await?;
+        let mut required_roles = vec![];
 
-        for role in &self.command_infos[command_indices.0].required_roles {
-            let role = RoleId::from_str(role).expect("RoleID Parse Error");
-
-            if !msg.author.has_role(ctx, guild_id, role).await? {
-                msg.reply(ctx, "role not available TODO").await?;
+        for role in all_roles {
+            if self.command_infos[command_indices.0].required_roles.contains(&role.1.name) {
+                required_roles.push(role);
             }
         }
 
-        Ok(())
+        for role in required_roles {
+            
+            if !msg.author.has_role(ctx, guild_id, role.0).await? {
+                msg.reply(ctx, "role not available TODO").await?;
+                println!("Roles valid: false");
+                return Ok(false);
+            }
+        }
+
+        println!("Roles valid: true");
+        Ok(true)
     }
 
     async fn execute_cmd(&self, command_indices: (usize, usize), args: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
@@ -124,6 +136,10 @@ impl CommandManager {
                 println!("Helping..");
                 help(args, ctx, msg).await
             },
+            "delete_channel" => {
+                println!("Deleting channel..");
+                delete_channel(args, ctx, msg).await
+            }
             _ => {
                 panic!("Unreachable reached!");
             }
@@ -146,7 +162,17 @@ impl CommandManager {
                 let args = self.get_args(cmd_indices, msg);
 
                 if self.args_valid(cmd_indices, &args) {
-                    self.execute_cmd(cmd_indices, &args, ctx, msg).await.expect("exec cmd error");
+
+                    if self.permisions_valid(cmd_indices, ctx, msg) {
+
+                        let roles_valid = self.roles_valid(cmd_indices, ctx, msg).await; 
+                        if roles_valid.is_ok()  {
+
+                            if roles_valid.unwrap() {
+                                self.execute_cmd(cmd_indices, &args, ctx, msg).await.expect("exec cmd error");    
+                            }
+                        }
+                    }
                 }
             
             }
@@ -157,7 +183,7 @@ impl CommandManager {
     }
 }
 
-async fn ping(args: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
+async fn ping(_: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
     msg.reply(ctx, "Pong!").await?;
 
     Ok(())
@@ -174,6 +200,9 @@ async fn help(args: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> 
             "help" | "info" => {
                 msg.reply(ctx, "help/info help").await?;
             },
+            "delete_channel" => {
+                msg.reply(ctx, "delete_channel help").await?;
+            },
             _ => {
                 panic!("Unreachable reached!");
             }
@@ -183,6 +212,11 @@ async fn help(args: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> 
     Ok(())
 }
 
+async fn delete_channel(_: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
+    msg.channel_id.delete(ctx).await?;
+
+    Ok(())
+}
 
 #[allow(dead_code)]
 #[derive(PartialEq, Eq, Copy, Clone, Hash)]
