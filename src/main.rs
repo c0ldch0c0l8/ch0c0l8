@@ -1,10 +1,10 @@
 mod command;
 use command::CommandManager;
 
-use std::env;
-
 use serenity::prelude::*;
 use serenity::model::channel::Message;
+
+use std::env;
 
 #[serenity::async_trait]
 impl EventHandler for CommandManager {
@@ -12,10 +12,13 @@ impl EventHandler for CommandManager {
         self.handle_messages(&ctx, &msg).await;
     }
 
-    async fn ready(&self, _ctx: Context, data_about_bot: serenity::model::prelude::Ready) {
+    async fn ready(&self, ctx: Context, data_about_bot: serenity::model::prelude::Ready) {
         println!("Bot {} READY!", data_about_bot.user.name);
+        
+        command::say_bot_info(&ctx, "BOT ON!").await;
     }
 
+    
      
 }
 
@@ -29,14 +32,17 @@ async fn main() {
     // consider adding a command_manager.validate() that checks 
     // that each command is set up and has provided all info
     // necessary. also check that roles in all commands are valid
-    command_manager.register(&["ping", "test"], 0, 0, &[], &[]);
-    command_manager.register(&["help", "info"], 0, 1, &[], &[]);
-    command_manager.register(&["delete_channel"], 0, 0, &[], &["Admin"]);
-    
+    command_manager.register(&["ping", "test"], 0, 0, &[]);
+    command_manager.register(&["help", "info"], 0, 1, &[]);
+    command_manager.register(&["delete_channel"], 0, 0, &["Admin"]);
+    command_manager.register(&["off"], 0, 0, &["Admin"]);
 
-    let mut client = Client::builder(token).event_handler(command_manager).await.expect("Error Creating Client");
     
-    
+    let mut client = Client::builder(token)
+        .event_handler(command_manager)
+        .await
+        .expect("client creation");
+
     if let Err(e) = client.start().await {
         println!("Error While Running Client: {}", e);
     }

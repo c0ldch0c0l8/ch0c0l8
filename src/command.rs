@@ -1,11 +1,12 @@
+use std::process::exit;
 use std::{collections::HashSet, ops::Range};
 use serenity::{client::Context, model::channel::Message};
+use serenity::model::id::{GuildId, ChannelId, UserId};
 
 
-pub struct CommandInfo{
+pub struct CommandInfo {
     commands: Vec<String>,
     args_range: Range<usize>,
-    required_permissions: HashSet<Permission>,
     required_roles: HashSet<String>
 }
 
@@ -14,18 +15,23 @@ pub struct CommandManager {
 }
 
 impl CommandManager {
-    pub fn new() -> CommandManager {
-        CommandManager {command_infos: vec![]}
+    pub fn new(/*token: &str*/) -> CommandManager {
+        CommandManager {
+            command_infos: vec![],
+        }
     }
+
+    // pub fn set_client(&mut self, client: Client) {
+    //     self.client = Some(client);
+    // }
 
     // adds a new command that can be called by _commands_ and has an _args_range_
     // with certain required permisions and/or roles, and takes the callback to call
     // slices used here to make registering a new command easier
-    pub fn register(&mut self, commands: &[&str], min_args: usize, max_args: usize, required_permissions: &[Permission], required_roles: &[&str]) {
+    pub fn register(&mut self, commands: &[&str], min_args: usize, max_args: usize, required_roles: &[&str]) {
         self.command_infos.push(CommandInfo {
             commands: commands.into_iter().map(|s| {s.to_string()}).collect::<Vec<String>>(),
             args_range: min_args..(max_args+1),
-            required_permissions: required_permissions.into_iter().map(|p| {*p}).collect::<HashSet<Permission>>(),
             required_roles: required_roles.into_iter().map(|s| {s.to_string()}).collect::<HashSet<String>>()
         });
     }
@@ -77,7 +83,7 @@ impl CommandManager {
         if args_string.is_empty() {
             println!("Args: \"\"");
         } else {
-            println!("Args: {}", args_string);
+            println!("Args: {}", args_string)
         }
 
         args_string
@@ -96,12 +102,6 @@ impl CommandManager {
 
     }
 
-    fn permisions_valid(&self, command_indices: (usize, usize), ctx: &Context, msg: &Message) -> bool {
-        // ctx.http.delete_message(channel_id, message_id) TODO
-        println!("Permisions valid: true");
-        true
-    }
-
     async fn roles_valid(&self, command_indices: (usize, usize), ctx: &Context, msg: &Message) -> serenity::Result<bool> {
         let guild_id = msg.guild(ctx).await.expect("Guild Error").id;
         let all_roles = guild_id.roles(ctx).await?;
@@ -118,11 +118,13 @@ impl CommandManager {
             if !msg.author.has_role(ctx, guild_id, role.0).await? {
                 msg.reply(ctx, "role not available TODO").await?;
                 println!("Roles valid: false");
+
                 return Ok(false);
             }
         }
 
         println!("Roles valid: true");
+
         Ok(true)
     }
 
@@ -139,8 +141,13 @@ impl CommandManager {
             "delete_channel" => {
                 println!("Deleting channel..");
                 delete_channel(args, ctx, msg).await
+            },
+            "off" => {
+                println!("Turning off..");
+                off(args, ctx, msg).await
             }
             _ => {
+                println!("Unreachable reached!");
                 panic!("Unreachable reached!");
             }
 
@@ -150,7 +157,12 @@ impl CommandManager {
     }
 
     pub async fn handle_messages(&self, ctx: &Context, msg: &Message) {
-        println!("Handling messages");
+        if msg.author.id == UserId::from(865992990703091713) || msg.channel_id == ChannelId::from(868751991755669514) {
+            return;
+        }
+        
+        println!("Handling messages..");
+
         let cmd_option = CommandManager::get_command(msg);
         
         if cmd_option.is_some() {
@@ -162,25 +174,33 @@ impl CommandManager {
                 let args = self.get_args(cmd_indices, msg);
 
                 if self.args_valid(cmd_indices, &args) {
-
-                    if self.permisions_valid(cmd_indices, ctx, msg) {
-
-                        let roles_valid = self.roles_valid(cmd_indices, ctx, msg).await; 
-                        if roles_valid.is_ok()  {
-
-                            if roles_valid.unwrap() {
-                                self.execute_cmd(cmd_indices, &args, ctx, msg).await.expect("exec cmd error");    
-                            }
+                    let roles_valid = self.roles_valid(cmd_indices, ctx, msg).await; 
+                    
+                    if roles_valid.is_ok()  {
+                        if roles_valid.unwrap() {
+                            self.execute_cmd(cmd_indices, &args, ctx, msg).await.expect("exec cmd error");    
                         }
                     }
                 }
-            
             }
         }
 
-        
-
     }
+}
+
+// DONT USE THIS FOR LOGGING LOL
+pub async fn say_bot_info(ctx: &Context, content: &str) {
+
+    GuildId::from(866289778486673458)
+        .channels(ctx)
+        .await
+        .expect("cant get channels")
+        .get(&ChannelId::from(868751991755669514))
+        .expect("no bot-info channel")
+        .say(ctx, content)
+        .await
+        .expect("cant say to bot info");
+
 }
 
 async fn ping(_: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
@@ -216,6 +236,13 @@ async fn delete_channel(_: &str, ctx: &Context, msg: &Message) -> serenity::Resu
     msg.channel_id.delete(ctx).await?;
 
     Ok(())
+}
+
+async fn off(_: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
+    msg.reply(ctx, "BOT OFF!").await.expect("Cant reply in off");
+    say_bot_info(ctx, "BOT OFF!").await;
+
+    exit(0);
 }
 
 #[allow(dead_code)]
