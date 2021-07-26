@@ -1,26 +1,11 @@
-mod command;
-use command::CommandManager;
+mod command_manager;
+use command_manager::CommandManager;
+
+mod commands;
 
 use serenity::prelude::*;
-use serenity::model::channel::Message;
 
 use std::env;
-
-#[serenity::async_trait]
-impl EventHandler for CommandManager {
-    async fn message(&self, ctx: Context, msg: Message) {
-        self.handle_messages(&ctx, &msg).await;
-    }
-
-    async fn ready(&self, ctx: Context, data_about_bot: serenity::model::prelude::Ready) {
-        println!("Bot {} READY!", data_about_bot.user.name);
-        
-        command::say_bot_info(&ctx, "BOT ON!").await;
-    }
-
-    
-     
-}
 
 #[tokio::main]
 async fn main() {

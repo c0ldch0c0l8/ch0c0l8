@@ -1,8 +1,8 @@
-use std::process::exit;
 use std::{collections::HashSet, ops::Range};
-use serenity::{client::Context, model::channel::Message};
+use serenity::{client::{EventHandler, Context}, model::channel::Message};
 use serenity::model::id::{GuildId, ChannelId, UserId};
 
+use crate::commands as cmd;
 
 pub struct CommandInfo {
     commands: Vec<String>,
@@ -15,15 +15,11 @@ pub struct CommandManager {
 }
 
 impl CommandManager {
-    pub fn new(/*token: &str*/) -> CommandManager {
+    pub fn new() -> CommandManager {
         CommandManager {
             command_infos: vec![],
         }
     }
-
-    // pub fn set_client(&mut self, client: Client) {
-    //     self.client = Some(client);
-    // }
 
     // adds a new command that can be called by _commands_ and has an _args_range_
     // with certain required permisions and/or roles, and takes the callback to call
@@ -116,7 +112,6 @@ impl CommandManager {
         for role in required_roles {
             
             if !msg.author.has_role(ctx, guild_id, role.0).await? {
-                msg.reply(ctx, "role not available TODO").await?;
                 println!("Roles valid: false");
 
                 return Ok(false);
@@ -132,22 +127,21 @@ impl CommandManager {
         match self.command_infos[command_indices.0].commands[command_indices.1].as_str() {
             "ping" | "test" => {
                 println!("Pinging..");
-                ping(args, ctx, msg).await
+                cmd::ping(args, ctx, msg).await
             },
             "help" | "info" => {
                 println!("Helping..");
-                help(args, ctx, msg).await
+                cmd::help(args, ctx, msg).await
             },
             "delete_channel" => {
                 println!("Deleting channel..");
-                delete_channel(args, ctx, msg).await
+                cmd::delete_channel(args, ctx, msg).await
             },
             "off" => {
                 println!("Turning off..");
-                off(args, ctx, msg).await
+                cmd::off(args, ctx, msg).await
             }
             _ => {
-                println!("Unreachable reached!");
                 panic!("Unreachable reached!");
             }
 
@@ -156,134 +150,91 @@ impl CommandManager {
         
     }
 
-    pub async fn handle_messages(&self, ctx: &Context, msg: &Message) {
+    pub async fn handle_messages(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
         if msg.author.id == UserId::from(865992990703091713) || msg.channel_id == ChannelId::from(868751991755669514) {
-            return;
+            return Ok(());
         }
         
         println!("Handling messages..");
 
-        let cmd_option = CommandManager::get_command(msg);
-        
-        if cmd_option.is_some() {
-            let cmd = cmd_option.unwrap();
-            let cmd_indices_option = self.command_valid(&cmd);
+        match CommandManager::get_command(msg) {
+            // a command
+            Some(cmd) => {
+                match self.command_valid(&cmd) {
+                    // command found
+                    Some(cmd_indices) => {
+                        let args = self.get_args(cmd_indices, msg);
+                        
 
-            if cmd_indices_option.is_some() {
-                let cmd_indices = cmd_indices_option.unwrap();
-                let args = self.get_args(cmd_indices, msg);
+                        if self.args_valid(cmd_indices, &args) { // args valid
+                            if self.roles_valid(cmd_indices, ctx, msg).await? { // roles valid
+                                self.execute_cmd(cmd_indices, &args, ctx, msg).await
 
-                if self.args_valid(cmd_indices, &args) {
-                    let roles_valid = self.roles_valid(cmd_indices, ctx, msg).await; 
-                    
-                    if roles_valid.is_ok()  {
-                        if roles_valid.unwrap() {
-                            self.execute_cmd(cmd_indices, &args, ctx, msg).await.expect("exec cmd error");    
+                            } else { // roles invalid
+                                msg.reply(ctx, format!("You are not assigned the role(s) required for this command. Use `!help {}` for more info", cmd)).await?;
+                                Ok(())
+                                
+                            }
+
+                        } else { // args invalid
+                            msg.reply(ctx, format!("Invalid arguments for `{0}`. Use `!help {0}` for more info.", cmd)).await?;
+                            Ok(())
+
                         }
+                    },
+                    // command not found
+                    None => {
+                        msg.reply(ctx, format!("Command `{}` is not found. Use `!help` for more info.", cmd)).await?;
+                        Ok(())
+
                     }
                 }
+            },
+            // Not a command. just a message
+            None => { Ok(()) }
+        }
+    }
+}
+
+#[serenity::async_trait]
+impl EventHandler for CommandManager {
+    async fn message(&self, ctx: Context, msg: Message) {
+        match self.handle_messages(&ctx, &msg).await {
+            Ok(()) => {
+                // all good
+            }, 
+            Err(e) => {
+                // serenity error (not from user input)
+                println!("{}", e);
             }
         }
+    }
 
+    async fn ready(&self, ctx: Context, data_about_bot: serenity::model::prelude::Ready) {
+        println!("Bot {} READY!", data_about_bot.user.name);
+        
+        match say_bot_info(&ctx, "BOT ON!").await {
+            Ok(()) => {
+                // all good
+            },
+            Err(e) => {
+                println!("{}", e);
+            }
+        }
     }
 }
 
 // DONT USE THIS FOR LOGGING LOL
-pub async fn say_bot_info(ctx: &Context, content: &str) {
+pub async fn say_bot_info(ctx: &Context, content: &str) -> serenity::Result<()> {
 
     GuildId::from(866289778486673458)
         .channels(ctx)
-        .await
-        .expect("cant get channels")
+        .await?
         .get(&ChannelId::from(868751991755669514))
         .expect("no bot-info channel")
         .say(ctx, content)
-        .await
-        .expect("cant say to bot info");
-
-}
-
-async fn ping(_: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
-    msg.reply(ctx, "Pong!").await?;
+        .await?;
 
     Ok(())
+
 }
-
-async fn help(args: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
-    if args == "" {
-        msg.reply(ctx, "General Help; list commands here TODO").await?;
-    } else {
-        match args {
-            "ping" | "test" => {
-                msg.reply(ctx, "ping/test help").await?;
-            },
-            "help" | "info" => {
-                msg.reply(ctx, "help/info help").await?;
-            },
-            "delete_channel" => {
-                msg.reply(ctx, "delete_channel help").await?;
-            },
-            _ => {
-                panic!("Unreachable reached!");
-            }
-        }
-    }
-
-    Ok(())
-}
-
-async fn delete_channel(_: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
-    msg.channel_id.delete(ctx).await?;
-
-    Ok(())
-}
-
-async fn off(_: &str, ctx: &Context, msg: &Message) -> serenity::Result<()> {
-    msg.reply(ctx, "BOT OFF!").await.expect("Cant reply in off");
-    say_bot_info(ctx, "BOT OFF!").await;
-
-    exit(0);
-}
-
-#[allow(dead_code)]
-#[derive(PartialEq, Eq, Copy, Clone, Hash)]
-pub enum Permission {
-    // General permissions
-    Administrator,
-    ViewAuditLog,
-    ViewServerInsights,
-    ManageServer,
-    ManageRoles,
-    ManageChannels,
-    KickMembers,
-    BanMembers,
-    CreateInstantInvite,
-    ChangeNickname,
-    ManageNicknames,
-    ManageEmojis,
-    ManageWebhooks,
-    ViewChannels,
-
-    // Text permissions
-    SendMessages,
-    SendTTSMessages,
-    ManageMessages,
-    EmbedLinks,
-    AttachFiles,
-    ReadMessageHistory,
-    MentionEveryone,
-    UseExternalEmojis,
-    AddReactions,
-    UseSlashCommands,
-
-    // Voice permissions
-    Connect,
-    Speak,
-    Video,
-    MuteMembers,
-    DeafenMembers,
-    MoveMembers,
-    UseVoiceActivity,
-    PrioritySpeaker
-}
-
